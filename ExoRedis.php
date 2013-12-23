@@ -1,14 +1,11 @@
 <?php
+$store=unserialize(file_get_contents("save.data"));
 function save_data($save){
-    $save_data=json_encode($save);
-    `echo $save_data > save.data`;
+    fwrite( fopen('save.data', 'w+'), serialize($save));
 }
-$store=json_decode(file_get_contents("save.data"));
-
-error_reporting(E_ALL);
 set_time_limit(0);
-ob_implicit_flush();
-$address = 'localhost';$port = 10001;
+$address = 'localhost'; //please change this with the Ip adderss
+$port = 15000;
 
 if (($sock = socket_create(AF_INET, SOCK_STREAM, SOL_TCP)) === false) {
     echo "socket_create() failed: reason: " . socket_strerror(socket_last_error()) . "\n";
@@ -37,6 +34,10 @@ do {
             continue;
         }
         $org_cmd=str_replace("\n","",$command);
+        if(bin2hex($org_cmd)=="fff4fffd06"){
+            $command = "EXIT";
+        }
+
         $command=str_replace("\n","",$command);
         $command_tmp=strtoupper($command);
         if($command_tmp!="EXIT" && $command_tmp!="SAVE"){
@@ -56,14 +57,70 @@ do {
             case "SETBIT":
                 list($pas_data,$pos,$value) = preg_split('/[\s]+/',$pas_data,3);
                 if(in_array($value,array(0,1))){
-                    $store[$pas_data]['type']="bit";
-                    $store[$pas_data]['value'][$pos]=$value;
+                    if(is_numeric($store[$pas_data]['value'])){
+                        $store[$pas_data]['value']=str_split(decbin(hexdec($store[$pas_data]['value'])));
+                        $store[$pas_data]['value'][$pos]=$value;
+                        $store[$pas_data]['value']=dechex(bindec(implode('', $store[$pas_data]['value'])));
+                    }else{
+                        $store[$pas_data]['value']=str_split(hexdec($store[$pas_data]['value']));
+                        if($store[$pas_data]['value'][intval($pos/4)]=='a'){
+                            $store[$pas_data]['value'][intval($pos/4)]=10;
+                        }elseif($store[$pas_data]['value'][intval($pos/4)]=='b'){
+                            $store[$pas_data]['value'][intval($pos/4)]=11;
+                        }elseif($store[$pas_data]['value'][intval($pos/4)]=='c'){
+                            $store[$pas_data]['value'][intval($pos/4)]=12;
+                        }elseif($store[$pas_data]['value'][intval($pos/4)]=='d'){
+                            $store[$pas_data]['value'][intval($pos/4)]=13;
+                        }elseif($store[$pas_data]['value'][intval($pos/4)]=='e'){
+                            $store[$pas_data]['value'][intval($pos/4)]=14;
+                        }elseif($store[$pas_data]['value'][intval($pos/4)]=='f'){
+                            $store[$pas_data]['value'][intval($pos/4)]=15;
+                        }
+                        $store[$pas_data]['value'][intval($pos/4)]=str_split(decbin($store[$pas_data]['value'][intval($pos/4)]));
+                        $store[$pas_data]['value'][intval($pos/4)][$pos%4]=$value;
+                        $store[$pas_data]['value'][intval($pos/4)]=bindec(implode('', $store[$pas_data]['value'][intval($pos/4)]));
+                        if($store[$pas_data]['value'][intval($pos/4)]==10){
+                            $store[$pas_data]['value'][intval($pos/4)]='a';
+                        }elseif($store[$pas_data]['value'][intval($pos/4)]==11){
+                            $store[$pas_data]['value'][intval($pos/4)]='b';
+                        }elseif($store[$pas_data]['value'][intval($pos/4)]==12){
+                            $store[$pas_data]['value'][intval($pos/4)]='c';
+                        }elseif($store[$pas_data]['value'][intval($pos/4)]==13){
+                            $store[$pas_data]['value'][intval($pos/4)]='d';
+                        }elseif($store[$pas_data]['value'][intval($pos/4)]==14){
+                            $store[$pas_data]['value'][intval($pos/4)]='e';
+                        }elseif($store[$pas_data]['value'][intval($pos/4)]==15){
+                            $store[$pas_data]['value'][intval($pos/4)]='f';
+                        }
+                        $store[$pas_data]['value']=dechex(implode('',$store[$pas_data]['value']));
+                    }
                     $talkback = "(integet)".$value."\n";
                 }else{$talkback = "Invalid Input\n";}
                 break;
             case "GETBIT":
                 list($pas_data,$pos) = preg_split('/[\s]+/',$pas_data,2);
-                $talkback = "(integet)".((isset($store[$pas_data]['value'][$pos]))?$store[$pas_data]['value'][$pos]:0)."\n";
+                if(is_numeric($store[$pas_data]['value'])){
+                        $temp=str_split(decbin(hexdec($store[$pas_data]['value'])));
+                        $talkback = "(integet)".$temp[$pos]."\n";
+                        unset($temp);
+                    }else{
+                        $temp=str_split(hexdec($store[$pas_data]['value']));
+                        if($temp[intval($pos/4)]=='a'){
+                            $temp[intval($pos/4)]=10;
+                        }elseif($temp[intval($pos/4)]=='b'){
+                            $temp[intval($pos/4)]=11;
+                        }elseif($temp[intval($pos/4)]=='c'){
+                            $temp[intval($pos/4)]=12;
+                        }elseif($temp[intval($pos/4)]=='d'){
+                            $temp[intval($pos/4)]=13;
+                        }elseif($temp[intval($pos/4)]=='e'){
+                            $temp[intval($pos/4)]=14;
+                        }elseif($temp[intval($pos/4)]=='f'){
+                            $temp[intval($pos/4)]=15;
+                        }
+                        $temp=str_split(decbin($temp[intval($pos/4)]));
+                        $talkback = "(integet)".$temp[$pos%4]."\n";
+                    }
                 break;
             case "ZADD":
                 list($pas_data,$value,$key) = preg_split('/[\s]+/',$pas_data,3);
